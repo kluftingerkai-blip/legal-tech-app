@@ -1,40 +1,49 @@
 import streamlit as st
 from openai import OpenAI
 
-# Seiten-Konfiguration
+# 1. Seiten-Konfiguration
+# Setzt Titel und Icon im Browser-Tab
 st.set_page_config(page_title="Legal Tech Tool", page_icon="§")
 
-# Titel
+# 2. UI: Titel und Beschreibung
 st.title("§ Übersetzer für Anwälte §")
 st.write("Verwandle Stichpunkte und Alltagssprache in professionelle Formulierungen für anwaltliche Schriftsätze.")
 
-# API Key Check
+# 3. Setup: API Key sicher laden
+# Wir prüfen, ob der Key in den Secrets hinterlegt ist.
 try:
     api_key = st.secrets["OPENAI_API_KEY"]
     client = OpenAI(api_key=api_key)
-except:
-    st.warning("⚠️ Der API-Key fehlt noch. Bitte in den Streamlit-Settings eintragen.")
+except Exception:
+    # Falls der Key fehlt, stoppen wir die App sauber mit einer Warnung
+    st.warning("⚠️ Der API-Key fehlt noch. Bitte trage ihn in den Streamlit-Settings unter 'Secrets' ein.")
     st.stop()
 
-# Auswahl-Box
+# 4. UI: Auswahl-Box für den Kontext
 art_des_schriftsatzes = st.selectbox(
     "Für welche Art von Dokument ist der Text?",
     ("Klageschrift", "Klageerwiderung", "Außergerichtliches Schreiben")
 )
 
-# Eingabefeld
-text_input = st.text_area("Deine Stichpunkte / Rohtext:", height=150, placeholder="Z.B.: Der Gegner lügt, er hat die Ware nie geschickt. Ich bin stinksauer.")
+# 5. UI: Eingabefeld für den User
+text_input = st.text_area(
+    "Deine Stichpunkte / Rohtext:", 
+    height=150, 
+    placeholder="Z.B.: Der Gegner lügt, er hat die Ware nie geschickt. Ich bin stinksauer."
+)
 
-# Button
+# 6. Logik: Der Button
 if st.button("Formulierungen generieren"):
+    # Check: Hat der User überhaupt was eingegeben?
     if not text_input:
         st.info("Bitte gib erst einen Text ein.")
     else:
+        # Lade-Animation starten
         with st.spinner("Analysiere Sachverhalt und generiere Varianten..."):
             try:
-                # --- PROMPT LOGIK ---
+                # --- PROMPT DEFINITION ---
                 
-                # 1. Der intelligente Grundbefehl
+                # Grundlegende Persona und Regeln
                 grund_befehl = """
                 Du bist ein erfahrener deutscher, sehr gründlicher und gewissenhafter Rechtsanwalt. 
                 Formuliere basierend auf der Eingabe einen präzisen Textbaustein für einen Schriftsatz.
@@ -47,8 +56,7 @@ if st.button("Formulierungen generieren"):
                 5. KONTEXT: Verzichte auf Anrede/Grußformel.
                 """
                 
-                # 2. Die spezifischen Stile (Angepasst nach deinen Wünschen)
-                
+                # Spezifische Anweisungen je nach Auswahl
                 if art_des_schriftsatzes == "Klageschrift":
                     stil_anweisung = """
                     Stil: Offensiv, anspruchsbegründend. Stelle den Sachverhalt als feste Tatsachen dar ('Der Beklagte hat...'). 
@@ -70,7 +78,7 @@ if st.button("Formulierungen generieren"):
                     Ziel: Außergerichtliche Einigung erzwingen und Druck aufbauen.
                     """
 
-                # 3. Zusammenbau
+                # Zusammensetzen des finalen Prompts für die KI
                 kompletter_prompt = f"""
                 {grund_befehl}
                 
@@ -86,15 +94,20 @@ if st.button("Formulierungen generieren"):
                 [Text]
                 """
                 
+                # API-Abfrage an OpenAI
                 response = client.chat.completions.create(
                     model="gpt-4o-mini",
-                    messages=[{"role": "user", "content": kompletter_prompt}]
+                    messages=[{"role": "user", "content": kompletter_prompt}],
+                    temperature=0.7 # Kreativität leicht bremsen für seriösere Ergebnisse
                 )
                 
+                # Ergebnis extrahieren
                 juristen_text = response.choices[0].message.content
                 
+                # Ergebnis anzeigen
                 st.success(f"Vorschläge für: {art_des_schriftsatzes}")
                 st.markdown(juristen_text)
                 
             except Exception as e:
-                st.error(f"Fehler: {e}")
+                # Fehlerbehandlung (z.B. wenn API Guthaben leer ist)
+                st.error(f"Ein technischer Fehler ist aufgetreten: {e}")
