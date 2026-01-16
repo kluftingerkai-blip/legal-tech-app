@@ -1,22 +1,26 @@
 import streamlit as st
+import os # Das ist neu: Damit können wir auf Render zugreifen
 from openai import OpenAI
 
 # 1. Seiten-Konfiguration
-# Setzt Titel und Icon im Browser-Tab
 st.set_page_config(page_title="Legal Tech Tool", page_icon="§")
 
 # 2. UI: Titel und Beschreibung
 st.title("§ Übersetzer für Anwälte §")
 st.write("Verwandle Stichpunkte und Alltagssprache in professionelle Formulierungen für anwaltliche Schriftsätze.")
 
-# 3. Setup: API Key sicher laden
-# Wir prüfen, ob der Key in den Secrets hinterlegt ist.
+# 3. Setup: API Key sicher laden (angepasst für Render)
 try:
-    api_key = st.secrets["OPENAI_API_KEY"]
+    # Zuerst versuchen wir, den Key von Render (Umgebungsvariable) zu holen
+    api_key = os.environ.get("OPENAI_API_KEY")
+    
+    # Falls er da nicht ist, schauen wir in den Streamlit Secrets (Fallback)
+    if not api_key:
+        api_key = st.secrets["OPENAI_API_KEY"]
+        
     client = OpenAI(api_key=api_key)
 except Exception:
-    # Falls der Key fehlt, stoppen wir die App sauber mit einer Warnung
-    st.warning("⚠️ Der API-Key fehlt noch. Bitte trage ihn in den Streamlit-Settings unter 'Secrets' ein.")
+    st.warning("⚠️ Der API-Key fehlt noch. Bitte trage ihn in den Settings ein.")
     st.stop()
 
 # 4. UI: Auswahl-Box für den Kontext
@@ -34,16 +38,13 @@ text_input = st.text_area(
 
 # 6. Logik: Der Button
 if st.button("Formulierungen generieren"):
-    # Check: Hat der User überhaupt was eingegeben?
     if not text_input:
         st.info("Bitte gib erst einen Text ein.")
     else:
-        # Lade-Animation starten
         with st.spinner("Analysiere Sachverhalt und generiere Varianten..."):
             try:
                 # --- PROMPT DEFINITION ---
                 
-                # Grundlegende Persona und Regeln
                 grund_befehl = """
                 Du bist ein erfahrener deutscher, sehr gründlicher und gewissenhafter Rechtsanwalt. 
                 Formuliere basierend auf der Eingabe einen präzisen Textbaustein für einen Schriftsatz.
@@ -56,7 +57,6 @@ if st.button("Formulierungen generieren"):
                 5. KONTEXT: Verzichte auf Anrede/Grußformel.
                 """
                 
-                # Spezifische Anweisungen je nach Auswahl
                 if art_des_schriftsatzes == "Klageschrift":
                     stil_anweisung = """
                     Stil: Offensiv, anspruchsbegründend. Stelle den Sachverhalt als feste Tatsachen dar ('Der Beklagte hat...'). 
@@ -78,7 +78,6 @@ if st.button("Formulierungen generieren"):
                     Ziel: Außergerichtliche Einigung erzwingen und Druck aufbauen.
                     """
 
-                # Zusammensetzen des finalen Prompts für die KI
                 kompletter_prompt = f"""
                 {grund_befehl}
                 
@@ -94,20 +93,16 @@ if st.button("Formulierungen generieren"):
                 [Text]
                 """
                 
-                # API-Abfrage an OpenAI
                 response = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[{"role": "user", "content": kompletter_prompt}],
-                    temperature=0.7 # Kreativität leicht bremsen für seriösere Ergebnisse
+                    temperature=0.7 
                 )
                 
-                # Ergebnis extrahieren
                 juristen_text = response.choices[0].message.content
                 
-                # Ergebnis anzeigen
                 st.success(f"Vorschläge für: {art_des_schriftsatzes}")
                 st.markdown(juristen_text)
                 
             except Exception as e:
-                # Fehlerbehandlung (z.B. wenn API Guthaben leer ist)
                 st.error(f"Ein technischer Fehler ist aufgetreten: {e}")
